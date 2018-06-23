@@ -1,9 +1,11 @@
 
+include $(CHIBIOS)/os/ex/ST/lis3dsh.mk
 
 # Required src directories
 ROLLSENSSRC = $(SUBMODULE)/gyro/rollsensor.c \
 	          $(SUBMODULE)/gyro/rollsenlp.c \
-			  $(CHIBIOS)/os/various/devices_lib/accel/lis302dl.c
+	          $(LIS3DSHSRC)
 
 # Required include directories
-ROLLSENSINC = $(SUBMODULE)/gyro
+ROLLSENSINC = $(SUBMODULE)/gyro \
+			  $(LIS3DSHINC)

@@ -2,18 +2,13 @@
 #include "hal.h"
 #include "rollsensor.h"
 #include "rollsenlp.h"
-#include "lis302dl.h"
+#include "lis3dsh.h"
 #include <stdlib.h>
 
 /*
  *  Roll sensor config pointer
  */
 RollSensorConfig_t *cfg = NULL;
-
-/*
- *  It stores the accelerometer chip version
- */
-uint8_t ChipVersion = 0x00;
 
 /*
  *  Roll sennsors state machnie
@@ -27,6 +22,10 @@ RollActualState_t RollState = ROLL_NOT_DETECTED;
  */
 static int32_t x, y;
 
+static int32_t rawdata[LIS3DSH_ACC_NUMBER_OF_AXES];
+
+static float acccooked[LIS3DSH_ACC_NUMBER_OF_AXES];
+
 /*
  *  Stores the monitored axis poisition in abs
  */
@@ -36,11 +35,32 @@ int32_t MonitoredAxis = 0;
  *  SPI configuration for the LIS302dl
  */
 static SPIConfig spi1cfg = {
+  FALSE,
   NULL,
   /* HW dependent part.*/
   NULL,
   NULL,
-  SPI_CR1_BR_0 | SPI_CR1_BR_1 | SPI_CR1_CPOL | SPI_CR1_CPHA
+  SPI_CR1_BR_0 | SPI_CR1_CPOL | SPI_CR1_CPHA,
+  0
+};
+
+/*
+ *  LIS3DSH Driver struct
+ */
+static LIS3DSHDriver LIS3DSHD1;
+
+/*
+ *  LIS3DSH driver config structure
+ */
+static LIS3DSHConfig lis3dshcfg = {
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  LIS3DSH_ACC_FS_2G,
+  LIS3DSH_ACC_ODR_100HZ,
+  LIS3DSH_ACC_BW_50HZ,
+  LIS3DSH_ACC_BDU_CONTINUOUS,
 };
 
 /*
@@ -53,27 +73,23 @@ static THD_FUNCTION(Thread1, arg) {
   (void)arg;
   chRegSetThreadName("RollSensor");
 
-  /* LIS302DL initialization.*/
-  lis302dlWriteRegister(cfg->spip, LIS302DL_CTRL_REG1, 0x43);
-  lis302dlWriteRegister(cfg->spip, LIS302DL_CTRL_REG2, 0x00);
-  lis302dlWriteRegister(cfg->spip, LIS302DL_CTRL_REG3, 0x00);
 
   /* Reader thread loop.*/
   time = chVTGetSystemTime();
   while (TRUE) {
 
-    /* Reading MEMS accelerometer X and Y registers.*/
-    x = (int8_t)lis302dlReadRegister(&SPID1, LIS302DL_OUTX);
-    y = (int8_t)lis302dlReadRegister(&SPID1, LIS302DL_OUTY);
-
+    /* 
+     *  Reads accelerometer data
+     */
+    lis3dshAccelerometerReadCooked(&LIS3DSHD1, acccooked);
     
     /*
      *  Select monitored axis
      */
     if(cfg->AxisToBeMonitored == X_AXIS){
-      MonitoredAxis = x;
+      MonitoredAxis = (int32_t)acccooked[0];
     }else{
-      MonitoredAxis = y;
+      MonitoredAxis = (int32_t)acccooked[1];
     }
 
     /*
@@ -120,16 +136,10 @@ static THD_FUNCTION(Thread1, arg) {
     /*
      *  Timing period is 10 ms
      */
-    chThdSleepUntil(time += MS2ST(10));
+    chThdSleepUntil(time += TIME_MS2I(10));
   }
 }
 
-/*
- *  Returns the chip version after the initialization
- */
-uint8_t GetChipVersion(void){
-	return ChipVersion;
-}
 
 /*
  *  Returns the rolling is detected or not
@@ -146,14 +156,21 @@ bool IsRollingDetected(void){
  *  Returns the actual X axis position
  */
 int32_t GetXAxis(void){
-	return x;
+  return (int32_t)(acccooked[0]);
 }
 
 /*
  *  Returns the actual Y axis position
  */
 int32_t GetYAxis(void){
-	return y;
+  return (int32_t)(acccooked[1]);
+}
+
+/*
+ *  Returns the actual Z axis position
+ */
+int32_t GetZAxis(void){
+  return (int32_t)(acccooked[2]);
 }
 
 /*
@@ -168,27 +185,34 @@ int32_t GetMonitoredAxis(void){
  */
 RollSensorState_t InitRollSensor(RollSensorConfig_t *_cfg){
 
-	cfg = _cfg;
+  	cfg = _cfg;
 
-	spi1cfg.ssport = cfg->portid;
+  	spi1cfg.ssport = cfg->portid;
 
-	spi1cfg.sspad = cfg->portnum;
+  	spi1cfg.sspad = cfg->portnum;
 
-	/*
-	 * Initializes the SPI driver 1 in order to access the MEMS. The signals
-	 * are already initialized in the board file.
-	 */
-  	spiStart(cfg->spip, &spi1cfg);
+
+    lis3dshcfg.spip = cfg->spip;
+
+    lis3dshcfg.spicfg = &spi1cfg;
+
+
+    /* LIS3DSH Object Initialization.*/
+    lis3dshObjectInit(&LIS3DSHD1);
+
+    /* Activates the LIS3DSH driver.*/
+    lis3dshStart(&LIS3DSHD1, &lis3dshcfg);
+
 
     /*
-     *  Returns the chip version of the connected accelerometer
+     *  First conversion to check if device available
      */ 
-  	ChipVersion = lis302dlReadRegister(cfg->spip, LIS302DL_WHO_AM_I);
+    msg_t ret = lis3dshAccelerometerReadCooked(&LIS3DSHD1, acccooked);
 
     /* 
      *  If the chip is not supported returns error
      */
-  	if(ChipVersion != SUPPORTED_DEVICE){
+  	if(ret != MSG_OK){
   		return NO_SUPPORTED_DEVICE_DETECTED;
   	}
 
@@ -202,4 +226,5 @@ RollSensorState_t InitRollSensor(RollSensorConfig_t *_cfg){
      */
   	chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO, Thread1, NULL);
 
+    return ACTIVE;
 }

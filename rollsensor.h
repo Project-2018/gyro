@@ -5,6 +5,7 @@
  *	Supported device indentifier
  */
 #define SUPPORTED_DEVICE	0x3F
+#define SUPPORTED_DEVICE2	0xFE
 
 /*
  *	Selectable a axes
@@ -23,8 +24,8 @@ typedef struct{
 	uint16_t portnum;
 	SelectableAxes_t AxisToBeMonitored;
 	int8_t	CenterPoint;
-	uint8_t DiffTrigger;
-	uint8_t Hysteresis;
+	uint16_t DiffTrigger;
+	uint16_t Hysteresis;
 } RollSensorConfig_t;
 
 /*
@@ -44,11 +45,6 @@ typedef enum{
 } RollActualState_t;
 
 /*
- *  Returns the chip version after the initialization
- */
-uint8_t GetChipVersion(void);
-
-/*
  *  Returns the rolling is detected or not
  */
 bool IsRollingDetected(void);
@@ -62,6 +58,11 @@ int32_t GetXAxis(void);
  *  Returns the actual Y axis position
  */
 int32_t GetYAxis(void);
+
+/*
+ *  Returns the actual Z axis position
+ */
+int32_t GetZAxis(void);
 
 /*
  *  Returns the monitored axis poisiton in absolute value
