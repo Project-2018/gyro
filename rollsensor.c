@@ -66,7 +66,7 @@ static LIS3DSHConfig lis3dshcfg = {
 /*
  * This is a periodic thread that reads accelerometer data
  */
-static THD_WORKING_AREA(waThread1, 128);
+static THD_WORKING_AREA(waThread1, 256);
 static THD_FUNCTION(Thread1, arg) {
   systime_t time;                   
 
