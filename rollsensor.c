@@ -31,6 +31,8 @@ static float acccooked[LIS3DSH_ACC_NUMBER_OF_AXES];
  */
 int32_t MonitoredAxis = 0;
 
+uint16_t TriggerTimer = 0;
+
 /*
  *  SPI configuration for the LIS302dl
  */
@@ -116,8 +118,19 @@ static THD_FUNCTION(Thread1, arg) {
         /*
          *  Checks the accelerometer position if rolling present or not
          */
-        if(MonitoredAxis > cfg->DiffTrigger)
+        if(MonitoredAxis > cfg->DiffTrigger){
+          TriggerTimer++;
+        }else{
+          TriggerTimer = 0;
+        }
+
+        /*
+         *  If trigger time reached, event fire
+         */
+        if(TriggerTimer > cfg->TriggerTime){
+          TriggerTimer = 0;
           RollState = ROLL_DETECTED;
+        }
 
       break;
       case ROLL_DETECTED:
@@ -127,6 +140,7 @@ static THD_FUNCTION(Thread1, arg) {
          */
         if(MonitoredAxis < (cfg->DiffTrigger - cfg->Hysteresis)){
           RollState = ROLL_NOT_DETECTED;
+          TriggerTimer = 0;
         }
 
       break;

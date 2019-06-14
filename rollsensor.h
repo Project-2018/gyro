@@ -26,6 +26,7 @@ typedef struct{
 	int8_t	CenterPoint;
 	uint16_t DiffTrigger;
 	uint16_t Hysteresis;
+	uint16_t TriggerTime;
 } RollSensorConfig_t;
 
 /*
